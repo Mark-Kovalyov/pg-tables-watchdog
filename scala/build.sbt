@@ -19,5 +19,10 @@ libraryDependencies += "org.postgresql" % "postgresql" % "42.2.6"
 // http://commons.apache.org/proper/commons-dbutils/
 // libraryDependencies += "commons-dbutils" % "commons-dbutils" % "1.7"
 
+libraryDependencies += "commons-cli" % "commons-cli" % "1.4"
+
+mainClass in (Compile, run) := Some("mayton.watchdog.pg.PgWatchdogTables")
+
+
 
 

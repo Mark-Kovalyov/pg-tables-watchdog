@@ -1,22 +1,10 @@
+package mayton.watchdog.pg
+
 import java.io.{File, FileInputStream, FileOutputStream, PrintWriter}
 import java.sql.{Connection, DriverManager}
 import java.util.Properties
 
 import scala.collection.mutable.ListBuffer
-
-// service postgresql restart
-//
-// postgres@host-name:~$
-// postgres=# create database mydb;
-// CREATE DATABASE
-//
-// postgres=# create user myuser with encrypted password '******';
-// CREATE ROLE
-//
-// postgres=# grant all privileges on database mydb to myuser;
-// GRANT
-//
-// psql -h {host} -p {port} -d {dbname} -U {user} -W {pwd}
 
 object PgWatchdogTables {
 
@@ -30,14 +18,14 @@ object PgWatchdogTables {
     script.println("")
   }
 
-  def tableScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
+  def tableScript(script : PrintWriter, tableName : String, cd : List[ColumnDefinition]) : Unit = {
     script.print(s"DROP TABLE IF EXISTS $TABLE_PREFIX$tableName CASCADE;\n\n")
     script.print(s"""CREATE TABLE $TABLE_PREFIX$tableName(
                     |  $COL_TS TIMESTAMP,
                     |  $COL_OPERATION CHAR(1)""".stripMargin)
 
 
-    for(columnDefinition <- columnDefinitions) {
+    for(columnDefinition <- cd) {
       script.print(",\n")
       script.print(s"  ${columnDefinition.columnName} ${columnDefinition.dataType}")
       if (columnDefinition.dataType == "character varying") {
@@ -57,13 +45,13 @@ object PgWatchdogTables {
    * [ WHEN ( condition ) ]
    * EXECUTE { FUNCTION | PROCEDURE } function_name ( arguments )
    */
-  def triggerScript(script : PrintWriter, tableName : String) : Unit = {
-    script.print(s"DROP TRIGGER IF EXISTS $TRIGG_PREFIX$tableName ON $TABLE_PREFIX$tableName CASCADE;\n\n")
-    script.print(s"CREATE TRIGGER $TRIGG_PREFIX$tableName AFTER INSERT OR UPDATE OR DELETE ON $TABLE_PREFIX$tableName FOR EACH ROW EXECUTE PROCEDURE $FUNC_PREFIX$tableName() ;\n\n")
+  def triggerScript(pw : PrintWriter, tn : String) : Unit = {
+    pw.print(s"DROP TRIGGER IF EXISTS $TRIGG_PREFIX$tn ON $TABLE_PREFIX$tn CASCADE;\n\n")
+    pw.print(s"CREATE TRIGGER $TRIGG_PREFIX$tn AFTER INSERT OR UPDATE OR DELETE ON $TABLE_PREFIX$tn FOR EACH ROW EXECUTE PROCEDURE $FUNC_PREFIX$tn() ;\n\n")
   }
 
-  def createColumnNameCsv(prefix : String, columnDefinitions: List[ColumnDefinition]): String = {
-    columnDefinitions.map(x => prefix + x.columnName).mkString(",")
+  def createColumnNameCsv(prefix : String, cd: List[ColumnDefinition]): String = {
+    cd.map(x => prefix + x.columnName).mkString(",")
   }
 
   /**
@@ -86,10 +74,10 @@ object PgWatchdogTables {
    * } ...
    */
   def functionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
-    
+
     val cncvl    : String = createColumnNameCsv("", columnDefinitions)
     val cncvlnew : String = createColumnNameCsv("NEW.", columnDefinitions)
-    
+
     script.print(
        s"""CREATE OR REPLACE FUNCTION $FUNC_PREFIX$tableName() RETURNS TRIGGER AS $$$$
           |BEGIN
@@ -113,14 +101,14 @@ object PgWatchdogTables {
     val statement = connection.createStatement()
     val resultSet = statement.executeQuery(
        s"""SELECT
-          |  ordinal_position, 
-          |  column_name, 
-          |  data_type, 
-          |  character_maximum_length, 
-          |  is_nullable 
-          |FROM information_schema.columns WHERE 
+          |  ordinal_position,
+          |  column_name,
+          |  data_type,
+          |  character_maximum_length,
+          |  is_nullable
+          |FROM information_schema.columns WHERE
           |  table_schema   = current_schema()
-          |  AND table_name = '$tableName' 
+          |  AND table_name = '$tableName'
           |  ORDER BY ordinal_position
           |
           |  """.stripMargin
@@ -164,7 +152,7 @@ object PgWatchdogTables {
 
   def tryToLoadSensitiveProperties() : Properties = {
     val props = new Properties()
-    if (new File("sensitive.properties").exists()) {      
+    if (new File("sensitive.properties").exists()) {
       props.load(new FileInputStream("sensitive.properties"))
     } else {
       props.put("host",     "localhost")

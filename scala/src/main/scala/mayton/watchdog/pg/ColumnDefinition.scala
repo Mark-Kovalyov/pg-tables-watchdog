@@ -1,3 +1,5 @@
+package mayton.watchdog.pg
+
 /*
  TODO: Should be investigated for next optional or mandatory values
 

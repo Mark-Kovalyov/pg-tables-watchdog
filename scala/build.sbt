@@ -17,7 +17,7 @@ libraryDependencies += "org.postgresql" % "postgresql" % "42.2.6"
 
 // Commons DbUtils
 // http://commons.apache.org/proper/commons-dbutils/
-libraryDependencies += "commons-dbutils" % "commons-dbutils" % "1.7"
+// libraryDependencies += "commons-dbutils" % "commons-dbutils" % "1.7"
 
 
 

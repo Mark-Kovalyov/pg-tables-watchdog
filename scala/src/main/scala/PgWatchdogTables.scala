@@ -1,10 +1,8 @@
-import java.io.{FileOutputStream, PrintWriter}
+import java.io.{File, FileInputStream, FileOutputStream, PrintWriter}
 import java.sql.{Connection, DriverManager}
 import java.util.Properties
 
 import scala.collection.mutable.ListBuffer
-
-//type PgColumnDefinition = (String, String)
 
 // service postgresql restart
 //
@@ -33,18 +31,20 @@ object PgWatchdogTables {
   }
 
   def tableScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
-    script.print(s"CREATE TABLE $TABLE_PREFIX$tableName(\n")
-    script.print(s"  $COL_TS TIMESTAMP,\n")
-    script.print(s"  $COL_OPERATION CHAR(1),\n")
+    script.print(s"DROP TABLE IF EXISTS $TABLE_PREFIX$tableName CASCADE;\n\n")
+    script.print(s"""CREATE TABLE $TABLE_PREFIX$tableName(
+                    |  $COL_TS TIMESTAMP,
+                    |  $COL_OPERATION CHAR(1)""".stripMargin)
+
+
     for(columnDefinition <- columnDefinitions) {
-      script.print(s"   ${columnDefinition.columnName} ${columnDefinition.dataType}")
+      script.print(",\n")
+      script.print(s"  ${columnDefinition.columnName} ${columnDefinition.dataType}")
       if (columnDefinition.dataType == "character varying") {
         script.print(s"(${columnDefinition.characterMaximumLength})")
       }
-      script.println()
     }
-    script.print(");")
-    script.print("\n\n")
+    script.print(");\n\n")
   }
 
   /**
@@ -57,11 +57,9 @@ object PgWatchdogTables {
    * [ WHEN ( condition ) ]
    * EXECUTE { FUNCTION | PROCEDURE } function_name ( arguments )
    */
-  def triggerScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
-    script.print(
-      s"CREATE TRIGGER $TRIGG_PREFIX$tableName AFTER INSERT UPDATE DELETE " +
-      s"ON $tableName FOR EACH ROW EXECUTE FUNTION $FUNC_PREFIX$tableName ; ")
-    script.print("\n\n")
+  def triggerScript(script : PrintWriter, tableName : String) : Unit = {
+    script.print(s"DROP TRIGGER IF EXISTS $TRIGG_PREFIX$tableName ON $TABLE_PREFIX$tableName CASCADE;\n\n")
+    script.print(s"CREATE TRIGGER $TRIGG_PREFIX$tableName AFTER INSERT OR UPDATE OR DELETE ON $TABLE_PREFIX$tableName FOR EACH ROW EXECUTE PROCEDURE $FUNC_PREFIX$tableName() ;\n\n")
   }
 
   def createColumnNameCsv(prefix : String, columnDefinitions: List[ColumnDefinition]): String = {
@@ -88,39 +86,44 @@ object PgWatchdogTables {
    * } ...
    */
   def functionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
-    val cncvl : String = createColumnNameCsv("", columnDefinitions)
+    
+    val cncvl    : String = createColumnNameCsv("", columnDefinitions)
     val cncvlnew : String = createColumnNameCsv("NEW.", columnDefinitions)
+    
     script.print(
-      s"CREATE OR REPLACE FUNCTION $FUNC_PREFIX$tableName() AS $$" +
-      s"RETURNS TRIGGER\n" +
-      s"BEGIN \n" +
-      s"IF TG_OP = 'INSERT' THEN\n" +
-      s" INSERT INTO $FUNC_PREFIX$tableName($COL_TS, $COL_OPERATION, $cncvl) VALUES(CURRENT_TIMESTAMP, 'I', $cncvlnew); \n" +
-      s"ELSIF TG_OP = 'UPDATE' THEN\n" +
-      s" INSERT INTO $FUNC_PREFIX$tableName($COL_TS, $COL_OPERATION, $cncvl) VALUES(CURRENT_TIMESTAMP, 'U', $cncvlnew); \n" +
-      s"ELSIF TG_OP = 'DELETE' THEN\n" +
-      s" INSERT INTO $FUNC_PREFIX$tableName($COL_TS, $COL_OPERATION) VALUES(CURRENT_TIMESTAMP, 'D'); \n" +
-      s"END;\n" +
-      s"$$\n" +
-      s"LANGUAGE plpgsql;")
-
-    script.print("\n\n")
+       s"""CREATE OR REPLACE FUNCTION $FUNC_PREFIX$tableName() RETURNS TRIGGER AS $$$$
+          |BEGIN
+          |  IF TG_OP = 'INSERT' THEN
+          |    INSERT INTO $TABLE_PREFIX$tableName($COL_TS, $COL_OPERATION, $cncvl) VALUES(CURRENT_TIMESTAMP, 'I', $cncvlnew);
+          |  ELSIF TG_OP = 'UPDATE' THEN
+          |    INSERT INTO $TABLE_PREFIX$tableName($COL_TS, $COL_OPERATION, $cncvl) VALUES(CURRENT_TIMESTAMP, 'U', $cncvlnew);
+          |  ELSIF TG_OP = 'DELETE' THEN
+          |    INSERT INTO $TABLE_PREFIX$tableName($COL_TS, $COL_OPERATION) VALUES(CURRENT_TIMESTAMP, 'D');
+          |  END IF;
+          |RETURN NEW;
+          |END;
+          |$$$$
+          |LANGUAGE plpgsql;
+          |
+          |""".stripMargin)
   }
 
   def getColumnNames(connection: Connection, tableName: String) : List[ColumnDefinition] = {
     var listBuffer = ListBuffer[ColumnDefinition]()
     val statement = connection.createStatement()
     val resultSet = statement.executeQuery(
-        s"SELECT " +
-        s"  ordinal_position, " +
-        s"  column_name, " +
-        s"  data_type, " +
-        s"  character_maximum_length, " +
-        s"  is_nullable " +
-        s"FROM information_schema.columns WHERE " +
-        s"  table_schema = current_schema() " +
-        s"  AND table_name = '$tableName' " +
-        s"  ORDER BY ordinal_position"
+       s"""SELECT
+          |  ordinal_position, 
+          |  column_name, 
+          |  data_type, 
+          |  character_maximum_length, 
+          |  is_nullable 
+          |FROM information_schema.columns WHERE 
+          |  table_schema   = current_schema()
+          |  AND table_name = '$tableName' 
+          |  ORDER BY ordinal_position
+          |
+          |  """.stripMargin
     )
     while(resultSet.next()){
       listBuffer += new ColumnDefinition(
@@ -142,7 +145,10 @@ object PgWatchdogTables {
       "SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')")
 
     while(resultSet.next()) {
-      listBuffer += resultSet.getString("table_name")
+      val tableName = resultSet.getString("table_name")
+      if (!tableName.startsWith(TABLE_PREFIX)) {
+        listBuffer += tableName
+      }
     }
     resultSet.close()
     statement.close()
@@ -156,17 +162,26 @@ object PgWatchdogTables {
     DriverManager.getConnection(url, props)
   }
 
+  def tryToLoadSensitiveProperties() : Properties = {
+    val props = new Properties()
+    if (new File("sensitive.properties").exists()) {      
+      props.load(new FileInputStream("sensitive.properties"))
+    } else {
+      props.put("host",     "localhost")
+      props.put("port",     "5432")
+      props.put("database", "postgres")
+      props.put("user",     "postgres")
+      props.put("password", "postgres123")
+    }
+    props
+  }
 
   def main(arg : Array[String]) : Unit = {
-
-    val host     = "localhost"
-    val port     = "5432"
-    val database = "<db>"
-
-    val user     = "<user>"
-    val password = "<pwd>"
-
-    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", user, password)
+    val props = tryToLoadSensitiveProperties()
+    val host  = props.getProperty("host")
+    val port  = props.getProperty("port")
+    val database   = props.getProperty("database")
+    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props.getProperty("user"), props.getProperty("password"))
 
     val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables.sql"))
 
@@ -174,7 +189,7 @@ object PgWatchdogTables {
       val columnDefinitions : List[ColumnDefinition] = getColumnNames(connection, tableName)
       tableScript(script, tableName, columnDefinitions)
       functionScript(script, tableName, columnDefinitions)
-      triggerScript(script, tableName, columnDefinitions)
+      triggerScript(script, tableName)
     }
     script.close()
   }

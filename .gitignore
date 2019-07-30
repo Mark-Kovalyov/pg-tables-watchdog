@@ -23,3 +23,7 @@
 hs_err_pid*
 
 sensitive.properties
+
+# Haskell
+haskell/.stack-work/
+haskell/pg-tables-watchdog.cabal

@@ -1,10 +1,11 @@
 package mayton.watchdog.pg
 
-import java.io.{File, FileInputStream, FileOutputStream, PrintWriter}
+import java.io.{FileOutputStream, PrintWriter}
 import java.sql.{Connection, DriverManager}
-import java.util.Properties
 
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
+
+import mayton.watchdog.pg.Utils._
 
 object PgWatchdogTables {
 
@@ -19,11 +20,11 @@ object PgWatchdogTables {
   }
 
   def tableScript(script : PrintWriter, tableName : String, cd : List[ColumnDefinition]) : Unit = {
-    script.print(s"DROP TABLE IF EXISTS $TABLE_PREFIX$tableName CASCADE;\n\n")
-    script.print(s"""CREATE TABLE $TABLE_PREFIX$tableName(
+    script.print(s"""DROP TABLE IF EXISTS $TABLE_PREFIX$tableName CASCADE;
+                    |
+                    |CREATE TABLE $TABLE_PREFIX$tableName(
                     |  $COL_TS TIMESTAMP,
                     |  $COL_OPERATION CHAR(1)""".stripMargin)
-
 
     for(columnDefinition <- cd) {
       script.print(",\n")
@@ -96,83 +97,7 @@ object PgWatchdogTables {
           |""".stripMargin)
   }
 
-  def getColumnNames(connection: Connection, tableName: String) : List[ColumnDefinition] = {
-    var listBuffer = ListBuffer[ColumnDefinition]()
-    val statement = connection.createStatement()
-    val resultSet = statement.executeQuery(
-       s"""SELECT
-          |  ordinal_position,
-          |  column_name,
-          |  data_type,
-          |  character_maximum_length,
-          |  is_nullable
-          |FROM information_schema.columns WHERE
-          |  table_schema   = current_schema()
-          |  AND table_name = '$tableName'
-          |  ORDER BY ordinal_position
-          |
-          |  """.stripMargin
-    )
-    while(resultSet.next()){
-      listBuffer += new ColumnDefinition(
-        resultSet.getString("column_name"),
-        resultSet.getString("data_type"),
-        resultSet.getInt("character_maximum_length"),
-        resultSet.getBoolean("is_nullable")
-      )
-    }
-    resultSet.close()
-    statement.close()
-    listBuffer.toList
-  }
-
-  def tables(connection: Connection) : List[String] = {
-    var listBuffer = ListBuffer[String]()
-    val statement = connection.createStatement()
-    val resultSet = statement.executeQuery(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')")
-
-    while(resultSet.next()) {
-      val tableName = resultSet.getString("table_name")
-      if (!tableName.startsWith(TABLE_PREFIX)) {
-        listBuffer += tableName
-      }
-    }
-    resultSet.close()
-    statement.close()
-    listBuffer.toList
-  }
-
-  def createConnection(url : String, user : String, password : String) : Connection = {
-    val props = new Properties
-      props.setProperty("user", user)
-      props.setProperty("password", password)
-    DriverManager.getConnection(url, props)
-  }
-
-  def tryToLoadSensitiveProperties() : Properties = {
-    val props = new Properties()
-    if (new File("sensitive.properties").exists()) {
-      props.load(new FileInputStream("sensitive.properties"))
-    } else {
-      props.put("host",     "localhost")
-      props.put("port",     "5432")
-      props.put("database", "postgres")
-      props.put("user",     "postgres")
-      props.put("password", "postgres123")
-    }
-    props
-  }
-
-  def main(arg : Array[String]) : Unit = {
-    val props = tryToLoadSensitiveProperties()
-    val host  = props.getProperty("host")
-    val port  = props.getProperty("port")
-    val database   = props.getProperty("database")
-    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props.getProperty("user"), props.getProperty("password"))
-
-    val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables.sql"))
-
+  def process(connection: Connection, script : PrintWriter) : Boolean = {
     for(tableName <- tables(connection)) {
       val columnDefinitions : List[ColumnDefinition] = getColumnNames(connection, tableName)
       tableScript(script, tableName, columnDefinitions)
@@ -180,6 +105,17 @@ object PgWatchdogTables {
       triggerScript(script, tableName)
     }
     script.close()
+    true
+  }
+
+  def main(arg : Array[String]) : Unit = {
+    val props : mutable.Map[String,String] = toScalaMutableMap(tryToLoadSensitiveProperties())
+    val host       = props("host")
+    val port       = props("port")
+    val database   = props("database")
+    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props("user"), props("password"))
+    val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables.sql"))
+    process(connection, script)
   }
 
 }

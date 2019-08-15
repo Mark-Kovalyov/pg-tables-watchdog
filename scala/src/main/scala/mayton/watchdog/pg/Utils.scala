@@ -29,7 +29,7 @@ object Utils {
          |  """.stripMargin
     )
     while(resultSet.next()){
-      listBuffer += new ColumnDefinition(
+      listBuffer += ColumnDefinition(
         resultSet.getString("column_name"),
         resultSet.getString("data_type"),
         resultSet.getInt("character_maximum_length"),
@@ -87,6 +87,4 @@ object Utils {
     }
     map
   }
-
-
 }

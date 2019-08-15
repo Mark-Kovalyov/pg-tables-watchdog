@@ -21,7 +21,7 @@ package mayton.watchdog.pg
  */
 
 
-class ColumnDefinition( val columnName : String,
-                        val dataType   : String,
-                        val characterMaximumLength : Int,
-                        val isNullable : Boolean)
+case class ColumnDefinition( val columnName : String,
+                             val dataType   : String,
+                             val characterMaximumLength : Int,
+                             val isNullable : Boolean)

@@ -3,7 +3,6 @@ package mayton.watchdog.pg
 import java.io.{FileOutputStream, PrintWriter}
 import java.sql.Connection
 
-import mayton.watchdog.pg.PgWatchdogTables.{COL_OPERATION, COL_TS, FUNC_PREFIX, TABLE_PREFIX, createColumnNameCsv}
 import mayton.watchdog.pg.Utils._
 
 import scala.collection.mutable
@@ -18,7 +17,7 @@ object PgWatchdogEAV {
     script.println(
       s"""|CREATE TABLE $EAV_LOG (
           |  TS          TIMESTAMP   NOT NULL,
-          |  OPERATION   CHAR(1)     CHECK (OPERATION IN ('I','U','D')),
+          |  OPERATION   CHAR(1)     NOT NULL CHECK (OPERATION IN ('I','U','D')),
           |  TABLE_NAME  VARCHAR(64) NOT NULL,
           |  COLUMN_NAME VARCHAR(64) NOT NULL,
           |  COL_VALUE   TEXT);
@@ -35,9 +34,6 @@ object PgWatchdogEAV {
 
   def eavFunctionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
 
-    val cncvl    : String = createColumnNameCsv("", columnDefinitions)
-    val cncvlnew : String = createColumnNameCsv("NEW.", columnDefinitions)
-
     script.print(
       s"""CREATE OR REPLACE FUNCTION $tableName$FUNC_SUFFIX() RETURNS TRIGGER AS $$$$
          |BEGIN
@@ -45,17 +41,24 @@ object PgWatchdogEAV {
          |""".stripMargin)
 
     for(columnDefinition <- columnDefinitions) {
-      script.print(s"    INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'I', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
+      script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
+      script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'I', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
+      script.print(s"    END IF;\n")
     }
 
     script.printf("  ELSIF TG_OP = 'UPDATE' THEN\n")
     for(columnDefinition <- columnDefinitions) {
-      script.print(s"    INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'U', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
+      script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
+      script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'U', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
+      script.print(s"    END IF;\n")
+
     }
 
     script.printf("  ELSIF TG_OP = 'DELETE' THEN\n")
     for(columnDefinition <- columnDefinitions) {
-      script.print(s"    INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME) VALUES(CURRENT_TIMESTAMP, 'D', '$tableName', '${columnDefinition.columnName}');\n")
+      script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
+      script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'D', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
+      script.print(s"    END IF;\n")
     }
 
     script.print(

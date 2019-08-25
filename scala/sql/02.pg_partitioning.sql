@@ -1,3 +1,14 @@
+-- Drop all tables
+
+DO $$ DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
+        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+    END LOOP;
+END $$;
+
+
 -- Range
 
 CREATE TABLE measurement (
@@ -19,7 +30,8 @@ create table sales (
     quantity   integer       CHECK (quantity > 0),
     price      numeric(38,2) CHECK (price > 0),
     region     VARCHAR(5)    CHECK (region in ('east','north','west','south'))
-) PARTITION BY LIST (region);
+)
+PARTITION BY LIST (region);
 
 CREATE TABLE part_a PARTITION OF sales FOR VALUES IN ('east','north');
 CREATE TABLE part_b PARTITION OF sales FOR VALUES IN ('west','south');

@@ -45,13 +45,10 @@ object Utils {
     var listBuffer = ListBuffer[String]()
     val statement = connection.createStatement()
     val resultSet = statement.executeQuery(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')")
+      "SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog') AND table_type = 'BASE TABLE'")
 
     while(resultSet.next()) {
-      val tableName = resultSet.getString("table_name")
-      if (!tableName.startsWith(TABLE_PREFIX)) {
-        listBuffer += tableName
-      }
+      listBuffer += resultSet.getString("table_name")
     }
     resultSet.close()
     statement.close()

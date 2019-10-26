@@ -26,7 +26,7 @@ object PgWatchdogEAV {
   }
 
   def eavTriggersFunctionScript(connection: Connection, script: PrintWriter) : Unit = {
-    for(tableName <- tables(connection).filter(p => p != "eav_log")) {
+    for(tableName <- tables(connection).filter(p => p != EAV_LOG)) {
       val columnDefinitions : List[ColumnDefinition] = getColumnNames(connection, tableName)
       eavFunctionScript(script, tableName, columnDefinitions)
     }
@@ -51,7 +51,6 @@ object PgWatchdogEAV {
       script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
       script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'U', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
       script.print(s"    END IF;\n")
-
     }
 
     script.printf("  ELSIF TG_OP = 'DELETE' THEN\n")

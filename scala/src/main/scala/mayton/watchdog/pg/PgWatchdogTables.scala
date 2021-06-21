@@ -38,7 +38,7 @@ object PgWatchdogTables {
 
   def triggerScript(pw : PrintWriter, tn : String) : Unit = {
     pw.print(s"DROP TRIGGER IF EXISTS $TRIGG_PREFIX$tn ON $TABLE_PREFIX$tn CASCADE;\n\n")
-    pw.print(s"CREATE TRIGGER $TRIGG_PREFIX$tn AFTER INSERT OR UPDATE OR DELETE ON $TABLE_PREFIX$tn FOR EACH ROW EXECUTE PROCEDURE $FUNC_PREFIX$tn() ;\n\n")
+    pw.print(s"CREATE TRIGGER $TRIGG_PREFIX$tn AFTER INSERT OR UPDATE OR DELETE ON $tn FOR EACH ROW EXECUTE PROCEDURE $FUNC_PREFIX$tn() ;\n\n")
   }
 
   def createColumnNameCsv(prefix : String, cd: List[ColumnDefinition]): String = {
@@ -81,10 +81,10 @@ object PgWatchdogTables {
 
   def main(arg : Array[String]) : Unit = {
     val props : mutable.Map[String,String] = toScalaMutableMap(tryToLoadSensitiveProperties())
-    val host       = props("host")
-    val port       = props("port")
-    val database   = props("database")
-    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props("user"), props("password"))
+    val host       = "localhost" //props("host")
+    val port       = "5432" //props("port")
+    val database   = "dht" //props("database")
+    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", "mayton", "cyberman")
     val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables.sql"))
     process(connection, script)
   }

@@ -81,10 +81,10 @@ object PgWatchdogTables {
 
   def main(arg : Array[String]) : Unit = {
     val props : mutable.Map[String,String] = toScalaMutableMap(tryToLoadSensitiveProperties())
-    val host       = "localhost" //props("host")
-    val port       = "5432" //props("port")
-    val database   = "dht" //props("database")
-    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", "mayton", "cyberman")
+    val host       = props("host")
+    val port       = props("port")
+    val database   = props("database")
+    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props("user"), props("password"))
     val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables.sql"))
     process(connection, script)
   }

@@ -15,7 +15,7 @@ object CliHelper {
     options.addOption("p", "port", true, "Port number [0..65535] (default = 5432)")
     options.addOption("d", "database", true, "Database Name")
     options.addOption("u", "username", true, "Username")
-    options
+    options.addOption("w", "password", true, "Password")
   }
 
 }

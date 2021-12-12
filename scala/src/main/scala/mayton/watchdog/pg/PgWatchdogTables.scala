@@ -1,11 +1,12 @@
 package mayton.watchdog.pg
 
+import mayton.watchdog.pg.CliHelper.createOptions
+
 import java.io.{FileOutputStream, PrintWriter}
 import java.sql.{Connection, DriverManager}
-
 import scala.collection.mutable
-
 import mayton.watchdog.pg.Utils._
+import org.apache.commons.cli.{CommandLineParser, DefaultParser, Options}
 
 object PgWatchdogTables {
 
@@ -80,7 +81,8 @@ object PgWatchdogTables {
   }
 
   def main(arg : Array[String]) : Unit = {
-    val props : mutable.Map[String,String] = toScalaMutableMap(tryToLoadSensitiveProperties())
+    val parser : CommandLineParser = new DefaultParser();
+    val props : mutable.Map[String,String] = toScalaMutableMap(tryToLoadSensitiveProperties(parser.parse(createOptions(), arg)))
     val host       = props("host")
     val port       = props("port")
     val database   = props("database")

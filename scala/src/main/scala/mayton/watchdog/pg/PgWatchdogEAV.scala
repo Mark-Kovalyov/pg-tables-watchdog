@@ -1,9 +1,11 @@
 package mayton.watchdog.pg
 
+import mayton.watchdog.pg.CliHelper.createOptions
+
 import java.io.{FileOutputStream, PrintWriter}
 import java.sql.Connection
-
 import mayton.watchdog.pg.Utils._
+import org.apache.commons.cli.{CommandLineParser, DefaultParser, Options}
 
 import scala.collection.mutable
 
@@ -86,11 +88,12 @@ object PgWatchdogEAV {
   }
 
   def main(arg : Array[String]) : Unit = {
-    val props: mutable.Map[String, String] = toScalaMutableMap(tryToLoadSensitiveProperties())
-    val host = props("host")
-    val port = props("port")
-    val database = props("database")
-    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props("user"), props("password"))
+    val parser : CommandLineParser = new DefaultParser()
+    val props = tryToLoadSensitiveProperties(parser.parse(createOptions(), arg))
+    val host       = props.get("host")
+    val port       = props.get("port")
+    val database   = props.get("database")
+    val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props.get("user").toString, props.get("password").toString)
     val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables-eav.sql"))
     process(connection, script)
     script.close()

@@ -3,8 +3,8 @@ package mayton.watchdog.pg
 import java.io.{File, FileInputStream}
 import java.sql.{Connection, DriverManager}
 import java.util.Properties
-
 import mayton.watchdog.pg.PgWatchdogTables.TABLE_PREFIX
+import org.apache.commons.cli.{CommandLine, Options}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -62,25 +62,39 @@ object Utils {
     DriverManager.getConnection(url, props)
   }
 
-  def tryToLoadSensitiveProperties() : Properties = {
-    val props = new Properties()
+  def tryToLoadSensitiveProperties(commandLine : CommandLine) : Properties = {
+    var sensitiveProps : Properties = null
+    val resProps = new Properties()
+
     if (new File("sensitive.properties").exists()) {
-      props.load(new FileInputStream("sensitive.properties"))
-    } else {
-      props.put("host",     "localhost")
-      props.put("port",     "5432")
-      props.put("database", "postgres")
-      props.put("user",     "postgres")
-      props.put("password", "postgres123")
+      sensitiveProps = new Properties()
+      sensitiveProps.load(new FileInputStream("sensitive.properties"))
     }
-    props
+
+    // TODO: Fix and implement
+
+    /*for(s <- Array("host", "port", "database", "user", "password")) {
+      if (commandLine.hasOption(s)) {
+        resProps.put(s, commandLine.getOptionValue(s))
+      } else if (sensitiveProps != null && sensitiveProps.contains(s)) {
+        resProps.put(s, sensitiveProps.get(s))
+      } else {
+        println(s"Unable to detect property name $s")
+      }
+    }
+    resProps*/
+    sensitiveProps
   }
 
   def toScalaMutableMap(props : Properties) : mutable.Map[String, String] = {
-    var map : mutable.Map[String, String] = new mutable.HashMap[String,String]()
+    val map : mutable.Map[String, String] = new mutable.HashMap[String,String]()
     import scala.collection.JavaConverters._
     props.entrySet().asScala.foreach {
-      entry => map += ((entry.getKey.asInstanceOf[String], entry.getValue.asInstanceOf[String]))
+      entry => {
+        val pkey = entry.getKey.asInstanceOf[String]
+        val pvalue = entry.getValue.asInstanceOf[String]
+        map += ((pkey, pvalue))
+      }
     }
     map
   }

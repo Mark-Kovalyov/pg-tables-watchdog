@@ -16,37 +16,35 @@ object PgWatchdogTables {
   val COL_TS        = "mtn_ts"
   val COL_OPERATION = "mtn_op"
 
-  def header(script : PrintWriter) : Unit = {
-    script.println("")
-  }
+  def header(script : PrintWriter) : Unit =  script.println("")
 
-  def tableScript(script : PrintWriter, tableName : String, cd : List[ColumnDefinition]) : Unit = {
+  def tableScript(script : PrintWriter, tableName : String, cd : List[ColumnDefinition]) : Unit =
     script.print(s"""DROP TABLE IF EXISTS $TABLE_PREFIX$tableName CASCADE;
                     |
                     |CREATE TABLE $TABLE_PREFIX$tableName(
                     |  $COL_TS TIMESTAMP,
                     |  $COL_OPERATION CHAR(1)""".stripMargin)
 
-    for(columnDefinition <- cd) {
+    for(columnDefinition <- cd)
       script.print(",\n")
       script.print(s"  ${columnDefinition.columnName} ${columnDefinition.dataType}")
-      if (columnDefinition.dataType == "character varying") {
+      if (columnDefinition.dataType == "character varying")
         script.print(s"(${columnDefinition.characterMaximumLength})")
-      }
-    }
-    script.print(");\n\n")
-  }
 
-  def triggerScript(pw : PrintWriter, tn : String) : Unit = {
+    script.print(");\n\n")
+  end tableScript
+
+
+  def triggerScript(pw : PrintWriter, tn : String) : Unit =
     pw.print(s"DROP TRIGGER IF EXISTS $TRIGG_PREFIX$tn ON $TABLE_PREFIX$tn CASCADE;\n\n")
     pw.print(s"CREATE TRIGGER $TRIGG_PREFIX$tn AFTER INSERT OR UPDATE OR DELETE ON $tn FOR EACH ROW EXECUTE PROCEDURE $FUNC_PREFIX$tn() ;\n\n")
-  }
+  end triggerScript
 
-  def createColumnNameCsv(prefix : String, cd: List[ColumnDefinition]): String = {
+  def createColumnNameCsv(prefix : String, cd: List[ColumnDefinition]): String =
     cd.map(x => prefix + x.columnName).mkString(",")
-  }
+  end createColumnNameCsv
 
-  def functionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
+  def functionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit =
 
     val cncvl    : String = createColumnNameCsv("", columnDefinitions)
     val cncvlnew : String = createColumnNameCsv("NEW.", columnDefinitions)
@@ -67,20 +65,21 @@ object PgWatchdogTables {
           |LANGUAGE plpgsql;
           |
           |""".stripMargin)
-  }
 
-  def process(connection: Connection, script : PrintWriter) : Boolean = {
-    for(tableName <- tables(connection)) {
+  end functionScript
+
+  def process(connection: Connection, script : PrintWriter) : Boolean =
+    for(tableName <- tables(connection))
       val columnDefinitions : List[ColumnDefinition] = getColumnNames(connection, tableName)
       tableScript(script, tableName, columnDefinitions)
       functionScript(script, tableName, columnDefinitions)
       triggerScript(script, tableName)
-    }
+    end for
     script.close()
     true
-  }
+  end process
 
-  def main(arg : Array[String]) : Unit = {
+  def main(arg : Array[String]) : Unit =
     val parser : CommandLineParser = new DefaultParser();
     val props : mutable.Map[String,String] = toScalaMutableMap(tryToLoadSensitiveProperties(parser.parse(createOptions(), arg)))
     val host       = props("host")
@@ -89,6 +88,6 @@ object PgWatchdogTables {
     val connection = createConnection(s"jdbc:postgresql://$host:$port/$database", props("user"), props("password"))
     val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables.sql"))
     process(connection, script)
-  }
+  end main
 
 }

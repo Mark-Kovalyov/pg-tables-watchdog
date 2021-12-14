@@ -41,26 +41,24 @@ object Utils {
     listBuffer.toList
   }
 
-  def tables(connection: Connection) : List[String] = {
+  def tables(connection: Connection) : List[String] =
     var listBuffer = ListBuffer[String]()
     val statement = connection.createStatement()
     val resultSet = statement.executeQuery(
       "SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog') AND table_type = 'BASE TABLE'")
 
-    while(resultSet.next()) {
-      listBuffer += resultSet.getString("table_name")
-    }
+    while(resultSet.next()) listBuffer += resultSet.getString("table_name")
     resultSet.close()
     statement.close()
     listBuffer.toList
-  }
+  end tables
 
-  def createConnection(url : String, user : String, password : String) : Connection = {
+  def createConnection(url : String, user : String, password : String) : Connection =
     val props = new Properties
     props.setProperty("user", user)
     props.setProperty("password", password)
     DriverManager.getConnection(url, props)
-  }
+  end createConnection
 
   def tryToLoadSensitiveProperties(commandLine : CommandLine) : Properties = {
     var sensitiveProps : Properties = null
@@ -86,7 +84,7 @@ object Utils {
     sensitiveProps
   }
 
-  def toScalaMutableMap(props : Properties) : mutable.Map[String, String] = {
+  def toScalaMutableMap(props : Properties) : mutable.Map[String, String] =
     val map : mutable.Map[String, String] = new mutable.HashMap[String,String]()
     import scala.collection.JavaConverters._
     props.entrySet().asScala.foreach {
@@ -97,5 +95,5 @@ object Utils {
       }
     }
     map
-  }
+  end toScalaMutableMap
 }

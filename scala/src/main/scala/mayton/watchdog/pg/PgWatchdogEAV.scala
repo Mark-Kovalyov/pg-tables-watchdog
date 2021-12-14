@@ -15,7 +15,7 @@ object PgWatchdogEAV {
   def TRIGGER_SUFFIX = "_trigger"
   def FUNC_SUFFIX = "_func"
 
-  def createDefaultEAVLog(script : PrintWriter) : Unit = {
+  def createDefaultEAVLog(script : PrintWriter) : Unit =
     script.println(
       s"""|CREATE TABLE $EAV_LOG (
           |  TS          TIMESTAMP   NOT NULL,
@@ -25,16 +25,15 @@ object PgWatchdogEAV {
           |  COL_VALUE   TEXT);
           |
           |  """.stripMargin)
-  }
+  end createDefaultEAVLog
 
-  def eavTriggersFunctionScript(connection: Connection, script: PrintWriter) : Unit = {
-    for(tableName <- tables(connection).filter(p => p != EAV_LOG)) {
+  def eavTriggersFunctionScript(connection: Connection, script: PrintWriter) : Unit =
+    for(tableName <- tables(connection).filter(p => p != EAV_LOG))
       val columnDefinitions : List[ColumnDefinition] = getColumnNames(connection, tableName)
       eavFunctionScript(script, tableName, columnDefinitions)
-    }
-  }
+  end eavTriggersFunctionScript
 
-  def eavFunctionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit = {
+  def eavFunctionScript(script : PrintWriter, tableName : String, columnDefinitions : List[ColumnDefinition]) : Unit =
 
     script.print(
       s"""CREATE OR REPLACE FUNCTION $tableName$FUNC_SUFFIX() RETURNS TRIGGER AS $$$$
@@ -42,25 +41,25 @@ object PgWatchdogEAV {
          |  IF TG_OP = 'INSERT' THEN
          |""".stripMargin)
 
-    for(columnDefinition <- columnDefinitions) {
+    for(columnDefinition <- columnDefinitions)
       script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
       script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'I', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
       script.print(s"    END IF;\n")
-    }
+
 
     script.printf("  ELSIF TG_OP = 'UPDATE' THEN\n")
-    for(columnDefinition <- columnDefinitions) {
+
+    for(columnDefinition <- columnDefinitions)
       script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
       script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'U', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
       script.print(s"    END IF;\n")
-    }
 
     script.printf("  ELSIF TG_OP = 'DELETE' THEN\n")
-    for(columnDefinition <- columnDefinitions) {
+
+    for(columnDefinition <- columnDefinitions)
       script.print(s"    IF NEW.${columnDefinition.columnName} IS NOT NULL THEN\n")
       script.print(s"      INSERT INTO $EAV_LOG(TS, OPERATION, TABLE_NAME, COLUMN_NAME, COL_VALUE) VALUES(CURRENT_TIMESTAMP, 'D', '$tableName', '${columnDefinition.columnName}', NEW.${columnDefinition.columnName});\n")
       script.print(s"    END IF;\n")
-    }
 
     script.print(
      s"""|  END IF;
@@ -78,16 +77,17 @@ object PgWatchdogEAV {
          |   FOR EACH ROW EXECUTE PROCEDURE $tableName$FUNC_SUFFIX();
          |
          |""".stripMargin)
-  }
+
+  end eavFunctionScript
 
 
-  def process(connection: Connection, script : PrintWriter) : Boolean = {
+  def process(connection: Connection, script : PrintWriter) : Boolean =
     createDefaultEAVLog(script)
     eavTriggersFunctionScript(connection, script)
     true
-  }
 
-  def main(arg : Array[String]) : Unit = {
+
+  def main(arg : Array[String]) : Unit =
     val parser : CommandLineParser = new DefaultParser()
     val props = tryToLoadSensitiveProperties(parser.parse(createOptions(), arg))
     val host       = props.get("host")
@@ -97,6 +97,6 @@ object PgWatchdogEAV {
     val script = new PrintWriter(new FileOutputStream("out/pg-watchdog-tables-eav.sql"))
     process(connection, script)
     script.close()
-  }
+  end main
 
 }

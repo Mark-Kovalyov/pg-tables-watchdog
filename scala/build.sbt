@@ -1,17 +1,16 @@
-name := "pg-watchdog-tables"
+val scala3Version = "3.1.0"
 
-version := "0.1"
+lazy val root = project
+  .in(file("."))
+  .settings(
+    name := "pg-tables-watchdog3",
+    version := "0.1.0-SNAPSHOT",
 
-scalaVersion := "2.13.0"
+    scalaVersion := scala3Version,
 
-libraryDependencies += "org.postgresql" % "postgresql" % "42.3.1"
-
-libraryDependencies += "commons-cli" % "commons-cli" % "1.5.0"
-
-mainClass in (Compile, run) := Some("mayton.watchdog.pg.PgWatchdogTables")
-
-//mainClass in (Compile, run) := Some("mayton.watchdog.pg.PgWatchdogEAV")
-
-
-
-
+    libraryDependencies ++= Seq(
+          "com.novocode" % "junit-interface" % "0.11" % "test",
+          "org.postgresql" % "postgresql" % "42.3.1",
+          "commons-cli" % "commons-cli" % "1.5.0"
+    )
+  )
